@@ -143,8 +143,8 @@ The difference: DOE works with 4–8 carefully designed factors at 2–4 levels.
 
 ```bash
 # 1. Clone this repository
-git clone https://github.com/LozanoLsa/ML_Industrial_Portfolio
-cd ML_Industrial_Portfolio
+git clone https://github.com/LozanoLsa/Machine-Learning-Manufacturing
+cd Machine-Learning-Manufacturing
 
 # 2. Navigate to the project you want to run
 cd 01_Logistic_Regression_SUP
