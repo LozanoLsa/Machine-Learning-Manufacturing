@@ -1,0 +1,51 @@
+PROJECT: 01_Logistic_Regression_SUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,847 shipment records from a road freight logistics operation across three route categories and two departure shifts. The ML task is binary classification to predict whether a shipment will arrive delayed (1) or on time (0). Class balance: 68.0% delayed — reflecting a structural operational problem, not a random event. Source: ERP/TMS operational data covering distance, load, facility timing, and operator assignment.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature               | Source System              | Instrument
+----------------------|----------------------------|--------------------------
+distance_km           | Route Planning / TMS       | Route planning system records
+num_stops             | Route Planning / TMS       | Delivery stop schedule
+route_type            | Route Planning / TMS       | Route classification (urban / mixed / long_haul)
+weight_kg             | ERP / Shipment Master      | Cargo weight at shipment entry
+priority              | ERP / Shipment Master      | Priority flag (1 = urgent, 0 = standard)
+loading_time_min      | Warehouse / Dock Execution Log | Dock time-stamp system
+dock_wait_time_min    | Warehouse / Dock Execution Log | Pre-loading wait time log
+departure_shift       | Shipment Release Timestamps | TMS departure event log
+operator_experience_yrs | Workforce / Operator Assignment Records | HR system / operator profile
+delayed               | Historical Delivery Compliance Records | TMS delivery confirmation log
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+distance_km            - Route distance in kilometers; longer routes increase transit exposure.
+weight_kg              - Cargo weight in kilograms; affects handling and transportation conditions.
+num_stops              - Number of intermediate delivery stops; more stops increase delay risk.
+priority               - Binary flag: 1 = urgent shipment, 0 = standard.
+loading_time_min       - Time spent loading at origin dock (min); longer loading creates schedule deviation.
+dock_wait_time_min     - Pre-loading wait at dock (min); represents congestion and operational waiting.
+operator_experience_yrs - Driver/operator experience (years); reduces variability and improves execution consistency.
+route_type             - Categorical: urban / mixed / long_haul. Urban routes have highest delay rate (74.5%) vs 57.7% for long-haul.
+departure_shift        - Categorical: day / night. Night departures delay at 72.6% vs 64.9% for day shifts.
+delayed                - Binary target: 1 = late, 0 = on time. Class balance: 68.0% delayed.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+StandardScaler applied to all numerical features. Label Encoding applied to categorical features (route_type, departure_shift). All preprocessing inside a sklearn Pipeline. Train/Test split: 80/20, random_state=42.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by logistics and dispatch operations teams to score shipment delay risk before a shipment leaves the dock. With 68% of shipments arriving delayed, the problem is structural and requires predictive intervention rather than reactive tracking.
+
+--------------------------------------------------
+GOAL:
+
+Predict delay probability before departure to enable risk-based prioritization of the shipment queue, improve OTIF (On Time In Full), and support better dispatch decisions. Model achieved Accuracy 69.7%, Recall (Delay) 91.3%, AUC-ROC 0.662.

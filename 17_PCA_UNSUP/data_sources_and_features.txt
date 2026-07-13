@@ -1,0 +1,48 @@
+PROJECT: 17_PCA_UNSUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,687 motor condition snapshots from 10 continuous sensors across three operating states (Normal: 59.2%, Alert: 30.6%, Critical: 10.2%). The ML task is unsupervised dimensionality reduction (PCA) to extract a continuous health index from correlated sensor data. op_status is used only for EDA coloring and external validation — PCA operates in fully unsupervised mode on the 10 sensor readings. PC1 captures 54.4% of all variance and represents the Mechanical Degradation Axis. A Reliability Index (IR) combining SPE and Hotelling T² collapses 10 dimensions into one operational health score.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature                                          | Source System                    | Instrument
+-------------------------------------------------|----------------------------------|------------------------------
+vibration_rms_mm_s, vibration_hf_g              | SCADA / CbM System               | Triaxial accelerometer at motor housing — RMS and HF band extracted
+bearing_temp_c                                   | DCS / PLC                        | RTD or IR pyrometer at bearing housing
+motor_current_a, voltage_v, power_factor_pct     | Power monitoring relay (PMR)     | CT-based current measurement + voltage tap per phase
+speed_rpm                                        | DCS                              | Proximity probe or encoder on shaft
+lube_flow_l_min, lube_pressure_bar              | SCADA / Lubrication system       | Inline flow meter and pressure transducer on lube circuit
+internal_humidity_pct                            | SCADA                            | Capacitive humidity sensor inside motor enclosure
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+vibration_rms_mm_s    - RMS vibration amplitude at motor housing (mm/s); mechanical health indicator. Normal mean: 1.99 mm/s, Critical mean: 6.17 mm/s (+210%). PC1 loading: +0.394.
+vibration_hf_g        - High-frequency vibration — bearing wear indicator (g); highest PC1 loading (+0.401). Normal: 0.36g, Critical: 2.09g (+488%).
+bearing_temp_c        - Bearing housing temperature (°C); rises with friction as bearings degrade. Normal: 65.0°C, Critical: 93.8°C (+44%). PC1 loading: +0.388.
+motor_current_a       - Motor phase current (A); reflects increasing mechanical load from degradation. Normal: 17.3A, Critical: 28.6A (+66%). PC1 loading: +0.362.
+voltage_v             - Supply voltage (V); effectively constant across status groups — loads onto PC2 (Electrical Supply Axis, +0.977).
+power_factor_pct      - Power factor (%); degrades as insulation deteriorates. Normal: 95.4%, Critical: 86.0% (-10%). PC1 loading: -0.334.
+speed_rpm             - Shaft rotational speed (rpm); effectively constant — loads onto PC3 (Speed Axis, +0.932).
+lube_flow_l_min       - Lubricant flow rate (L/min); drops as bearing wear restricts flow. Normal: 35.0, Critical: 24.0 (-31%). PC1 loading: -0.328.
+lube_pressure_bar     - Lubricant line pressure (bar); falls as flow is restricted. Normal: 3.69 bar, Critical: 2.05 bar (-44%). PC1 loading: -0.360.
+internal_humidity_pct - Internal motor cavity humidity (%); rises as seals degrade. Environmental degradation indicator.
+op_status             - Normal / Alert / Critical; used for EDA coloring and external validation only — not used in PCA.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+StandardScaler applied to all 10 sensor readings — mandatory for PCA so that high-magnitude variables (°C, rpm) do not dominate variance decomposition. No train/test split — PCA maps the full correlation structure. 6 PCs retained for SPE reconstruction error computation (91.6% variance). 3 PCs used for health space visualization and IR computation (74.0% variance). Reliability Index: IR = 1 / (1 + SPE_norm + T²_norm) in range (0, 1]. SPE UCL (95th percentile): 6.55. T² UCL (95th percentile): 9.08. IR thresholds calibrated to known status distribution: Normal >= 0.86, Alert 0.74–0.86, Severe 0.62–0.74, Critical < 0.62.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by maintenance engineers and reliability managers in industrial motor-driven equipment. PCA answers the question that 10-chart dashboards cannot: where is this motor on the degradation continuum, and how far has it traveled from the healthy operating region? The Reliability Index (IR) translates 10 correlated sensor readings into a single actionable health score with tiered alert bands. The PC1 loadings confirm that the degradation cascade — vibration drives bearing temperature through friction, bearing wear reduces lubrication, higher friction degrades insulation — is encoded in the dominant principal component.
+
+--------------------------------------------------
+GOAL:
+
+Extract a continuous motor health index from 10 correlated sensor readings using PCA to enable early detection of the mechanical degradation cascade before individual alarm thresholds are crossed, providing maintenance engineers with a single IR score, tiered alert bands, and PC loadings that identify the physical root cause of degradation. PC1 variance: 54.4%. 3-PC total variance: 74.0%. IR classification: Normal 471 (27.9%), Alert 740 (43.9%), Severe 316 (18.7%), Critical 160 (9.5%).

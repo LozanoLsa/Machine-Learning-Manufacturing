@@ -1,0 +1,67 @@
+PROJECT: 09_Lasso_SUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,843 weld bead records captured from a MIG/MAG welding cell PLC, inline sensors, and post-weld inspection logs. The ML task is regression to predict weld penetration depth (%) from 17 candidate features, using Lasso to simultaneously perform feature selection (6 of 17 variables zeroed by L1 penalty). Target range: 0.0–94.5%, mean 48.8%, adequate zone [60–90%]: 24.4% of welds.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature                   | Source System              | Instrument
+--------------------------|----------------------------|--------------------------
+voltage_v                 | Welding Power Source / PLC | Inverter controller — logged per bead pass
+current_a                 | Welding Power Source / PLC | Inverter controller — logged per bead pass
+wire_feed_speed_mm_s      | Wire Feeder Controller     | Encoder reading captured at bead start
+material_temp_c           | Contact Pyrometer / Thermocouple | Pre-heat measurement on base material before arc strike
+ambient_temp_c            | Environmental Sensor       | Bay-level temperature at time of weld
+travel_speed_mm_s         | Robotic Arm Controller / SCADA | Kinematic parameters from the robot program for that joint sequence
+torch_angle_deg           | Robotic Arm Controller / SCADA | Kinematic parameters from robot program — ZEROED by Lasso
+ctwd_mm                   | Robotic Arm Controller / SCADA | Contact tip to work distance from robot program
+gas_flow_l_min            | Gas Console / Flow Meter   | Shielding gas parameters logged at cell startup or per-job changeover
+co2_pct                   | Gas Console / Flow Meter   | Shielding gas composition — ZEROED by Lasso
+thickness_mm              | ERP / Part Master          | Material specification from the production order
+steel_type                | ERP / Part Master          | Steel grade category — ZEROED by Lasso
+rust_level                | Inline Vision System       | Pre-weld surface quality score from inspection camera
+surface_grease            | Inline Vision System       | Pre-weld surface contamination score from inspection camera
+wire_diameter_mm          | Material Cert / Consumable Log | Nominal electrode diameter from spool label — ZEROED by Lasso
+roller_wear_pct           | Maintenance System         | Roller wear % from last maintenance inspection record — ZEROED by Lasso
+arc_stability_rms         | Welding Power Source       | Voltage fluctuation RMS from high-frequency arc waveform — ZEROED by Lasso
+weld_penetration_pct      | Post-Weld Inspection / NDT Log | TARGET — penetration score from inline or manual post-weld inspection
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+voltage_v              - Arc voltage (V); controls arc geometry and weld pool profile. Coefficient +3.78 (active).
+current_a              - Welding current (A); primary energy driver — amperage determines heat input per unit length. Coefficient +9.14 — strongest positive driver.
+wire_feed_speed_mm_s   - Wire feed rate (mm/s); secondary energy driver — more wire means more filler and arc energy. Coefficient +7.84.
+material_temp_c        - Base material preheat temperature (°C); marginal contribution (active).
+ambient_temp_c         - Ambient temperature in welding bay (°C); marginal contribution (active).
+travel_speed_mm_s      - Torch travel speed (mm/s); active with marginal contribution.
+torch_angle_deg        - Torch inclination angle (°); ZEROED — angle variation within operating range carries no independent signal.
+ctwd_mm                - Contact tip to work distance (mm); longer distance reduces current density at arc. Coefficient -0.26 (active).
+gas_flow_l_min         - Shielding gas flow rate (L/min); adequate flow prevents oxidation and porosity. Coefficient +0.83 (active).
+co2_pct                - CO2 content in shielding gas mix (%); ZEROED — captured by gas_flow_l_min at observed conditions.
+thickness_mm           - Base plate thickness (mm); thicker plate absorbs more energy. Coefficient +1.09 (active).
+steel_type             - Steel grade category (0, 1, 2); ZEROED — grade categories do not separate penetration outcomes in this dataset.
+rust_level             - Surface rust score 0–10 from vision system; strongest negative driver. Coefficient -2.61.
+surface_grease         - Surface contamination score 0–10 from vision system; second negative driver. Coefficient -2.15.
+wire_diameter_mm       - Wire electrode diameter (mm); ZEROED — diameter held nearly constant in this dataset.
+roller_wear_pct        - Wire feeder roller wear (%); ZEROED — wear variation within range has no independent effect on penetration.
+arc_stability_rms      - Arc voltage RMS fluctuation; ZEROED — captured by other electrical parameters.
+weld_penetration_pct   - Effective weld penetration depth (%); regression target.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+StandardScaler applied to all 17 features — mandatory for Lasso so the L1 penalty applies fairly across features on different scales. LassoCV evaluated 60 alpha candidates on log scale from 0.001 to 100 via 5-fold CV; selected alpha = 0.1081. Result: 11 active features, 6 zeroed. OLS on all 17 features achieves the same R² = 0.847, confirming zeroed variables carry no independent signal. Train/Test split: 80/20, random_state=42.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by welding process engineers and quality teams in structural fabrication lines. The contamination finding — rust and grease are the two strongest negative drivers — provides a directly quantifiable business case for mandatory pre-weld cleaning steps that is visible to anyone who reads the model output.
+
+--------------------------------------------------
+GOAL:
+
+Predict weld penetration depth and perform feature selection via L1 regularization to identify the 11 critical process drivers, eliminate monitoring of 6 redundant variables, and quantify the impact of surface contamination on weld quality. Model achieved R² = 0.847, RMSE = 6.27 percentage points, MAE = 5.08 percentage points.

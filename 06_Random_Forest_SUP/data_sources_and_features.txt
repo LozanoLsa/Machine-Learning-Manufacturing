@@ -1,0 +1,55 @@
+PROJECT: 06_Random_Forest_SUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,847 pharmaceutical batch records from an oral liquid manufacturing line across four formulation campaigns. The ML task is binary classification to predict whether a batch will meet final pH specification (4.5–5.5). Class balance: 41.4% approved, 58.6% failing pH spec. Source: simulated batch records from a pharmaceutical oral liquid manufacturing process.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature               | Source System              | Instrument
+----------------------|----------------------------|--------------------------
+citric_acid_pct       | Formulation / Recipe Management System | Dispensing system — primary acidulant concentration (%)
+citrate_buffer_pct    | Formulation / Recipe Management System | Dispensing system — buffer concentration (%)
+api_pct               | Formulation / Recipe Management System | Dispensing system — active pharmaceutical ingredient (%)
+sweetener_pct         | Formulation / Recipe Management System | Dispensing system — sweetener excipient (%)
+preservative_pct      | Formulation / Recipe Management System | Dispensing system — preservative concentration (%)
+water_ph              | Water Treatment System / QC | pH meter — purified water quality at batch start
+prev_lot_ph           | Previous Lot Quality Records / Batch History | QMS — previous lot final pH measurement
+mixing_temp_c         | Mixing Equipment Control System | Temperature probe — mixing vessel temperature (°C)
+mixing_time_min       | Mixing Process Logs        | PLC timer — mixing duration (minutes)
+agitation_rpm         | Equipment Monitoring       | Tachometer / drive encoder — agitation speed (rpm)
+addition_order        | Batch Execution Records / SOPs | Batch record — ingredient addition sequence code
+lot_approved          | Quality Release Decision   | QMS / QC lab — final pH compliance flag
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+citric_acid_pct       - Primary acidulant concentration (%); strongest pH driver. Gini importance 23.7%, permutation -24.2%.
+citrate_buffer_pct    - Buffer concentration (%); counter-lever — resists pH change. Gini importance 21.6%, permutation -17.7%.
+api_pct               - Active pharmaceutical ingredient concentration (%); excipient contribution to chemical balance.
+sweetener_pct         - Sweetener concentration (%); indirect effect on solution properties.
+preservative_pct      - Preservative concentration (%); impacts stability and chemical interactions.
+water_ph              - Purified water pH at batch start; sets the initial baseline for the mixture. Gini importance 8.4%.
+prev_lot_ph           - Previous lot final pH; captures line conditioning effects. Gini importance 9.2%.
+mixing_temp_c         - Mixing temperature (°C); affects reaction kinetics and solubility.
+mixing_time_min       - Mixing duration (min); ensures proper integration of components. Gini importance 7.5%.
+agitation_rpm         - Agitation speed (rpm); impacts mixing efficiency and uniformity.
+addition_order        - Ingredient addition sequence: 1=Buffer→Acid→API / 2=Acid→Buffer / 3=API→Buffer. Order 2 achieves only 34.6% approval vs 45.0% for order 1.
+lot_approved          - Binary classification target: 1 = final pH within 4.5–5.5 specification, 0 = failed.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+No StandardScaler needed — Random Forest uses threshold splits, not distances. Feature importance computed via both Gini (built-in) and Permutation (test-set) methods. Train/Test split: 70/30, random_state=42. Ensemble of 300 trees.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by pharmaceutical formulation and process engineers in oral liquid manufacturing. The model is consulted before synthesis begins to predict pH compliance risk and enable formulation corrections before any material is consumed — avoiding batch rejection, regulatory deviation investigations, and release schedule delays.
+
+--------------------------------------------------
+GOAL:
+
+Predict pH compliance before batch synthesis to reduce batch rejection, improve consistency, and support formulation optimization. Model achieved Accuracy 84.1%, AUC-ROC 0.918, Recall (Approved) 80.4%.

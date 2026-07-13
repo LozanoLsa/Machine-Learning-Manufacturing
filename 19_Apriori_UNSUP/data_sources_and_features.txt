@@ -1,0 +1,53 @@
+PROJECT: 19_Apriori_UNSUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,748 employee records across 8 HR profile dimensions and 3 outcome variables. The ML task is association rule mining (Apriori) to discover which combinations of HR conditions co-occur with outcomes such as attrition, performance, and absenteeism. Unlike supervised ML, all columns including outcomes are treated as items — Apriori discovers structural associations, not individual predictions. From 3,861 frequent itemsets (min_support=0.04), 2,148 HR-critical rules were derived. No formal Data Origin table with per-feature instrument attribution is present in the README; source systems are described at the category level below.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature             | Source System                            | Notes
+--------------------|------------------------------------------|------------------------------
+department          | HR Information System / Org Chart        | Organizational unit from HR master data
+shift               | Work Scheduling System                   | Day / Night shift from scheduling records
+seniority           | HRIS / Employee History                  | Junior / Mid / Senior derived from tenure and grade
+contract_type       | Employment Contract Records              | Permanent / Temporary from employment administration
+remote_work         | HR Policy Records / Work Arrangement     | Yes / No from work arrangement agreements
+training_status     | Learning Management System (LMS)         | Completed / Partial / None from last training cycle
+overtime            | Time & Attendance System                 | Yes / No — regular overtime requirement from scheduling
+manager_rating      | Performance Management System            | High / Medium / Low from direct manager assessment
+attrition           | HR Exit Records / Resignation Tracking   | Outcome — Yes / No (15.2% attrition baseline)
+performance         | Performance Evaluation System            | Outcome — High / Medium / Low (20.9% Low baseline)
+absenteeism         | Attendance Tracking System               | Outcome — High / Medium / Low (18.4% High baseline)
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+department      - Organizational unit: Operations, Quality, Logistics, Production, Admin. Context that modulates all other effects.
+shift           - Work schedule: Day, Night. Night shift interacts with training and remote work in attrition rules.
+seniority       - Experience level: Junior, Mid, Senior. Non-linear effect — Mid + remote_work=No appears in absenteeism rules.
+contract_type   - Employment type: Permanent, Temporary. Temporary + remote_work=No → attrition=Yes, Lift=1.405.
+remote_work     - Remote work access: Yes, No. Appears in the retention rule with 100% confidence: manager_rating=High + remote_work=Yes + training_status=Completed → attrition=No.
+training_status - Last training cycle status: Completed, Partial, None. Strongest single attrition driver: training_status=None → attrition=Yes, Lift=1.480.
+overtime        - Regular overtime: Yes, No. overtime=Yes + remote_work=No → attrition=Yes, Lift=1.383.
+manager_rating  - Manager assessment: High, Medium, Low. Highest-lift rule antecedent: manager_rating=Low + remote_work=No → absenteeism=High, Lift=1.665 (highest in full ruleset).
+attrition       - Outcome: Yes (15.2% baseline) / No (84.8%). 21 attrition=Yes rules found.
+performance     - Outcome: High (29.2%) / Medium (49.9%) / Low (20.9%). 55 performance=Low rules, 193 performance=High rules found.
+absenteeism     - Outcome: High (18.4%) / Medium (37.3%) / Low (44.3%). 67 absenteeism=High rules found; highest lift in ruleset.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+All 11 columns (8 HR profile + 3 outcomes) encoded as categorical items using TransactionEncoder — produces a binary matrix of shape (1,748 x 30): 30 unique items across all columns. No StandardScaler required — Apriori was designed for binary transaction matrices and requires no numerical encoding or scaling. min_support = 0.04 (at least 70 of 1,748 records); selected by sweeping from 0.04 to 0.20 — yields 3,861 frequent itemsets and maximum lift=1.665. min_confidence = 0.60. Primary ranking metric: lift = confidence / baseline rate. Total rules: 7,561 directional if-then rules; 2,148 HR-critical (outcome as consequent).
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by People Analytics teams and HR Business Partners in industrial and corporate organizations. Apriori produces its output as an organizational policy library rather than individual predictions: each rule with lift > 1 identifies a combination of HR conditions that systematically elevates a risk, enabling targeted interventions. The highest-confidence retention rule (manager_rating=High + remote_work=Yes + training_status=Completed → attrition=No, confidence=100%) demonstrates that the most powerful retention levers are organizational decisions — not employee characteristics.
+
+--------------------------------------------------
+GOAL:
+
+Discover which combinations of HR conditions (department, shift, contract type, remote work, training, overtime, manager rating) systematically co-occur with attrition, performance, and absenteeism outcomes in 1,748 employee records, producing a rule library with lift ranging to 1.665 that quantifies risk amplification from condition combinations that univariate HR dashboards cannot detect. Frequent itemsets: 3,861. HR-critical rules: 2,148. Max lift: 1.665 (absenteeism=High rules).

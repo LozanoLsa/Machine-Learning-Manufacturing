@@ -1,0 +1,45 @@
+PROJECT: 07_Regression_SUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,763 press cycle records from a high-volume riveting operation spanning two production shifts and three rivet size families (3 mm, 4 mm, 5 mm shank). The ML task is regression to predict formed rivet head diameter (mm) from six process inputs. Specification window: 5.0–5.4 mm, with 50.7% overall in-spec compliance. Records joined from press PLC logs, inline CMM measurements, and ERP material certificates.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature               | Source System              | Instrument
+----------------------|----------------------------|--------------------------
+press_force_kn        | Press PLC                  | Servo controller — recorded per cycle
+press_stroke_mm       | Press PLC                  | Ram encoder — recorded per cycle
+hold_time_ms          | Press PLC Timer            | Dwell time logged at cycle completion
+rivet_diameter_mm     | Material Cert / ERP        | Nominal dimension from incoming inspection certificate
+rivet_length_mm       | Material Cert / ERP        | Nominal dimension from incoming inspection certificate
+temperature_c         | Environmental Sensor       | Ambient temperature at press bay, logged at cycle start
+head_diameter_mm      | Inline CMM Station         | Measured formed head dimension — TARGET variable
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+press_force_kn        - Applied press force (kN); range 25–60 kN. Coefficient +0.019 mm/kN — secondary controllable lever for recipe tuning.
+press_stroke_mm       - Ram travel distance (mm); primary controllable lever. Coefficient +0.075 mm/mm.
+hold_time_ms          - Dwell time at full press force (ms); minimal creep effect. Coefficient +0.0002 mm/ms.
+rivet_diameter_mm     - Nominal shank diameter (3, 4, or 5 mm); dominant driver. Coefficient +0.186 mm/mm — more shank material produces larger formed head.
+rivet_length_mm       - Rivet shank length (mm); small but consistent effect at high volume. Coefficient +0.004 mm/mm.
+temperature_c         - Ambient temperature in press bay (°C); thermal expansion effect. Coefficient +0.003 mm/°C — 10°C swing adds 0.027 mm.
+head_diameter_mm      - Formed rivet head diameter measured by inline CMM (mm); regression target. Spec: 5.0–5.4 mm.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+No scaling required for OLS — coefficients express effects directly in physical engineering units (mm/kN, mm/mm, etc.). Four variants benchmarked: OLS (selected as production model), Ridge (alpha=1.0), Lasso (alpha=0.01), ElasticNet (alpha=0.01). All regularised variants converge to OLS performance, confirming all six features carry genuine non-redundant signal. Train/Test split: 80/20, random_state=42.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by process engineers in automotive and aerospace riveting operations. The model enables pre-production recipe validation — determining whether a force/stroke combination will produce an in-spec head before the press fires, eliminating the reactive CMM-report loop that allows dozens of non-conforming parts to accumulate before a deviation is confirmed.
+
+--------------------------------------------------
+GOAL:
+
+Predict formed rivet head diameter from six process inputs to enable pre-production recipe validation, ensure dimensional compliance, and optimize forming parameters. Model achieved R² = 0.909, RMSE = 0.081 mm (8.1% of the 1.0 mm spec window).

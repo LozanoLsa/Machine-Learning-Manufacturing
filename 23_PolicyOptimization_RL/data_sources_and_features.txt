@@ -1,0 +1,60 @@
+PROJECT: 23_PolicyOptimization_RL
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This project uses a simulated 6-station assembly line environment — no real-world sensor dataset is ingested for training. The REINFORCE agent trains entirely through online interaction with the simulation over 400 episodes. Data_people.csv contains 23,832 decision steps from a random manager operating the same environment across 300 episodes — this documents the performance floor, not the agent's training data. The agent uses REINFORCE (Monte Carlo Policy Gradient) with a linear softmax policy over an 11-dimensional continuous state space and 6 discrete interventions.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+This project does not use a real-world dataset for agent training. The data source is a custom Python assembly line simulation. Data_people.csv records the random policy behavioral baseline:
+
+State Feature         | Simulation Variable    | Real-World Analogue
+----------------------|------------------------|------------------------------
+ct_norm_s1 – ct_norm_s6 | Normalized cycle time per station [0, 1] | Station cycle time from MES / line balancing system — 0 = fast, 1 = slow
+wip_norm              | Work-in-progress accumulation [0, 0.45] | Buffer level from WIP tracking system — 0 = empty, approaching 1 = saturated
+speed_norm            | Line speed [0.42, 1.0] | Conveyor / pacing speed from line control system — 0 = stopped, 1 = maximum
+failure_prob          | Estimated failure probability [0.00, 0.20] | Predictive failure probability from equipment health monitoring
+micro_stops_norm      | Micro-stop accumulation [0.00, 1.0] | Micro-stop frequency from OEE / downtime tracking system
+operator_efficiency   | Operator performance index [0.75, 1.0] | Operator efficiency from production performance records
+
+Action Space (6 discrete interventions):
+
+Action                | Description
+----------------------|------------------------------
+Redirect Flow         | Route WIP to alternate buffer or station — highest learned probability (30.1%)
+Reassign Operator     | Move operator to bottleneck station — second highest (24.3%)
+Quick Maintenance     | Perform brief corrective maintenance — addresses failure_prob and micro_stops
+No Action             | Maintain current state — under-weighted by learned policy (12.8%)
+Increase Speed        | Raise line speed — suppressed in high-speed states (10.0%)
+Decrease Speed        | Lower line speed — strongly suppressed by learned policy (4.1%)
+
+Reward function:
+r_t = 1.2 * throughput - 4.0 * micro_stops - 1.5 * WIP - 10.0 * failure_prob
+Terminal penalty: -200 if WIP >= 40 or failure_prob > 0.20.
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS (state features observed at each decision step):
+
+ct_norm_s1 – ct_norm_s6 - Normalized cycle time at each of 6 assembly stations (0 = fast, 1 = slow). Bottleneck detection signal for station-specific interventions.
+wip_norm              - Work-in-progress accumulation (0 = empty, 1 = saturated). High WIP → policy strongly favors Redirect Flow over Increase Speed.
+speed_norm            - Line speed normalized (0 = stopped, 1 = maximum). Suppresses Decrease Speed when high; suppresses Increase Speed when already near maximum.
+failure_prob          - Estimated failure probability (0.00–0.20). Dominant penalty weight (-10 per unit). High failure_prob → policy prioritizes Quick Maintenance.
+micro_stops_norm      - Micro-stop accumulation (0.00–1.0). Addressed jointly with failure_prob by Quick Maintenance.
+operator_efficiency   - Operator performance index (0.75–1.0). Low efficiency → Reassign Operator; suppresses Decrease Speed (operator problem, not speed problem).
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+Policy architecture: linear softmax over 11-dimensional state vector. Parameters: W (6 x 11 weight matrix) + b (6-dimensional bias) = 66 total parameters. Initialized to zero — all actions equally likely (16.7%) at start. Update rule (REINFORCE): after each episode, compute discounted returns G_t = sum(gamma^k * r_{t+k}), normalize to zero mean and unit variance, then update: theta <- theta + alpha * G_t * grad_log(pi(a_t | s_t)). Hyperparameters: gamma = 0.99, lr = 0.002, episodes = 400, max_steps = 100. Return normalization is mandatory — raw returns span [+578, +16,007]; without normalization, high-return episodes dominate gradient steps. No train/test split — the agent trains and evaluates online.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Models the sequential decision problem of an assembly line manager choosing interventions at each step across a 6-station line. REINFORCE was selected over Q-Learning because the 11-dimensional continuous state space makes tabular RL impractical (Q-Learning requires a table entry per state). The linear softmax policy generalizes to states never visited during training. The behavioral baseline dataset (Data_people.csv) documents what random intervention selection produces — the performance floor against which the trained policy is evaluated. The three learned priorities (Redirect Flow, Reassign Operator, Quick Maintenance) correspond to the highest-leverage interventions in the reward function and match what an experienced line manager would identify through observation.
+
+--------------------------------------------------
+GOAL:
+
+Train a REINFORCE agent to learn the optimal intervention policy for a 6-station assembly line from 400 simulated episodes, without any labeled expert demonstrations, achieving +32.1% reward improvement and +20.6% throughput improvement over the random baseline. Mean step reward: Random = 94.86, Trained = 128.74. Mean throughput: Random = 93.6 UPH, Trained = 116.0 UPH. P(REINFORCE > Random) = 100% across 2,000 bootstrap resamples; 95% CI: [+2,851, +4,679] reward units per episode.

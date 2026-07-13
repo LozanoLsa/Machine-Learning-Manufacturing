@@ -1,0 +1,59 @@
+PROJECT: 24_ModelBased_RL
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This project uses a simulated 1,000 L chemical reactor with stochastic pH dynamics. The offline dataset (Data_pH.csv) contains 35,672 state-action-reward transitions collected from 2,000 episodes of random dosing — the agent never interacted with the reactor during training. A Gradient Boosting Regressor world model (R² = 0.9987, MAE = 0.028 pH) is trained on this offline data to approximate reactor dynamics, then a one-step lookahead planner selects actions by querying the world model. Random dosing baseline: 3.5% of steps in target zone [6.8, 7.2]. Model-based planner (H=1): 11.3% of steps in target zone — a 3.26x improvement.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+This project does not use a real-world sensor dataset. The data source is a custom Python simulation of a 1,000 L chemical reactor. Data_pH.csv records offline transitions from random dosing:
+
+Variable          | Simulation Variable  | Real-World Analogue
+------------------|----------------------|------------------------------
+ph_t              | Current reactor pH   | pH sensor — in-line pH electrode in reactor vessel (PAT system)
+temp_t_c          | Reaction temperature (°C), range 20–30°C | RTD or thermocouple in reactor jacket (DCS)
+volume_t_l        | Reactor volume (L), range 900–1,100 L | Level transmitter or mass balance from MES
+buffer_capacity   | Buffer strength — resistance to pH change, range 0.8–1.5 | Derived from titration or in-line analyzer (PAT / LIMS)
+dose_ml           | Reagent applied per step (mL) — the control variable | Dosing pump controller — base or acid addition (DCS / PLC)
+ph_t1             | Next-step pH (model target — what the world model predicts) | pH sensor reading at t+1 — target of the supervised world model
+
+Action space (5 discrete dosing actions):
+
+Action            | dose_ml   | Description
+------------------|-----------|------------------------------
+Large Base        | +1.0 ml   | Aggressive alkaline correction — used when pH < 6.5
+Small Base        | +0.5 ml   | Gentle alkaline correction — used when 6.5 <= pH < 6.8
+No Dose           | 0 ml      | Hold — used when pH is in target zone [6.8, 7.2] or near-neutral
+Small Acid        | -0.5 ml   | Gentle acid correction — used when 7.2 < pH <= 7.8
+Large Acid        | -1.0 ml   | Aggressive acid correction — used when pH > 7.8
+
+Reward function:
+r_t = -10 * |pH_t - 7.0| + 5.0 (if pH in [6.8, 7.2]) - 0.2 * |dose_ml|
+The -10 deviation penalty is the dominant term. The +5 target zone bonus is what the planner hunts for. The -0.2 dosing cost prevents over-dosing when near-neutral.
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS (offline transition dataset — Data_pH.csv):
+
+ph_t              - Current reactor pH; dominant predictor of next pH. World model feature importance: 0.889. The non-linearity near pH extremes (same dose produces smaller change near extremes than near neutral) is captured by GBR without explicit physics assumptions.
+temp_t_c          - Reaction temperature (°C); feature importance in world model: 0.000 — negligible in the 20–30°C operating range of this simulation.
+volume_t_l        - Reactor volume (L); feature importance in world model: 0.000 — negligible at 900–1,100 L operating range.
+buffer_capacity   - Buffer strength (dimensionless 0.8–1.5); feature importance: 0.003 — minor effect, modulates dose impact at the margin.
+dose_ml           - Reagent applied (mL); the control variable. Feature importance: 0.107 — second most important predictor of next pH after current pH.
+ph_t1             - Next-step pH; the world model prediction target. World model R² = 0.9987, MAE = 0.028 pH on held-out test set.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+World model: Gradient Boosting Regressor — 200 trees, learning rate = 0.1, max depth = 4, random_state = 42. Trained on 28,537 transitions (80%), validated on 7,135 transitions (20%). No StandardScaler applied to GBR — tree-based models are scale-invariant. Planning algorithm: one-step lookahead (H=1). For each of 5 possible actions, world model predicts next pH and computes expected reward; planner selects the action with highest predicted reward. Horizon sensitivity confirmed: H=1 achieves 11.3% in-target; H=5 achieves 0.9% — worse than random (3.5%) because world model MAE compounds across steps. Key structural limitation: target zone [6.8, 7.2] has only 41 of 35,672 training transitions — world model MAE in target zone = 0.186 vs. 0.025 overall (coverage problem from random exploration).
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Models the control problem of a pH management system in a 1,000 L chemical batch reactor — a common process in pharmaceutical, specialty chemical, and water treatment operations. Model-Based RL addresses a constraint of online RL: the agent cannot interact with the real reactor during training (cost, safety, regulatory restrictions). By learning a world model from 35,672 offline transitions and planning within it, the controller achieves a 3.26x improvement in target-zone time without a single live reactor interaction during training. The horizon analysis (H=1 optimal, H=5 worse than random) demonstrates a universal Model-Based RL trade-off: the optimal planning horizon is determined by world model accuracy divided by environment stochasticity, not by intuition about planning depth.
+
+--------------------------------------------------
+GOAL:
+
+Build a Model-Based RL controller for pH management in a simulated 1,000 L reactor by training a GBR world model (R² = 0.9987) from 35,672 offline random-dosing transitions, then deploying a one-step lookahead planner that selects dosing actions by querying the world model — achieving 11.3% steps in target zone [6.8, 7.2] vs. 3.5% random baseline (3.26x improvement) without any live reactor interaction during training. World model: MAE = 0.028 pH overall (0.186 in target zone due to sparse coverage). Planner improvement: mean reward per step -4.19 vs. random -14.29 (+10.10 per step).

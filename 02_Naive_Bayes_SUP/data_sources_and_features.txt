@@ -1,0 +1,53 @@
+PROJECT: 02_Naive_Bayes_SUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,847 painted plastic part records from an injection-to-inspection production line spanning four process stages: injection, paint cabin, internal logistics, and packaging. The ML task is binary classification to detect surface defects at final inspection. Class balance: 21.6% defective. Source: simulated operational data spanning four process stages.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature                 | Source System              | Instrument
+------------------------|----------------------------|--------------------------
+regrind_pct             | Injection / MES            | Blend control system — regrind ratio at injection
+resin_temp_c            | Injection Machine PLC      | Barrel thermocouple — temperature during injection
+cooling_time_s          | Injection Machine PLC      | Cycle timer — cooling phase duration
+paint_viscosity         | Paint Cabin / Process Log  | Viscometer — viscosity at application point
+film_thickness_um       | Paint Cabin / QC Station   | Thickness gauge — applied film measurement
+booth_humidity_pct      | Paint Cabin / HVAC Control | Ambient humidity sensor in booth
+pre_paint_storage_hrs   | Internal Logistics Log     | Timestamp delta: injection completion to paint entry
+num_handlings           | Internal Logistics Log     | Handling event counter from part tracking system
+container_type          | Packaging / Warehouse Log  | Container type assigned at packaging stage
+part_protection         | Packaging / Warehouse Log  | Protection status flag at packaging stage
+surface_defect          | Final Inspection Station   | Visual inspection system — binary defect flag
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+regrind_pct            - Percentage of regrind material in resin blend; higher values can affect material consistency and surface quality.
+resin_temp_c           - Injection temperature (°C); impacts material flow and surface finish.
+cooling_time_s         - Molding cooling duration (s); improper cooling can cause internal stresses and surface defects.
+paint_viscosity        - Paint viscosity at application; controls coating behavior and surface uniformity.
+film_thickness_um      - Applied paint film thickness (micrometers); too thin or too thick generates defects.
+booth_humidity_pct     - Paint booth ambient humidity (%); affects drying and adhesion.
+pre_paint_storage_hrs  - Storage time before painting (hrs); longer exposure increases contamination risk. Top numeric driver (Cohen's d = 0.189).
+num_handlings          - Number of handling events before painting; more handlings increase probability of surface damage (Cohen's d = 0.169).
+container_type         - Container used during logistics; cardboard = 29.5% defect rate vs plastic box = 15.1%.
+part_protection        - Whether part was protected during handling; unprotected = 29.3% vs protected = 15.9%.
+surface_defect         - Binary classification target: 1 = visual defect detected at final inspection, 0 = OK.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+OneHotEncoder applied to categorical features (container_type, part_protection). Numerical features passed through without scaling — GaussianNB estimates mean and variance directly from data. All preprocessing inside a Pipeline with ColumnTransformer. Train/Test split: 80/20, random_state=42.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by quality and production engineers in painted plastic part manufacturing. The key finding is that defects originate in internal logistics (pre-paint storage and handling), not in the injection process — meaning the logistics supervisor, not the injection engineer, is the primary corrective action owner.
+
+--------------------------------------------------
+GOAL:
+
+Predict surface defect probability before painting to enable pre-paint risk scoring and flag high-risk parts before they enter the paint cabin. Model achieved Accuracy 76.5%, AUC-ROC 0.648, Recall (Defect) 10.0% at 0.5 threshold (probability score used for risk ranking at lower thresholds).

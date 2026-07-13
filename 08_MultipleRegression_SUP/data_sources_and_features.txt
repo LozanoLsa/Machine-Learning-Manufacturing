@@ -1,0 +1,43 @@
+PROJECT: 08_MultipleRegression_SUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 647 furnace rack cycle records captured from a muffle furnace PLC and plant MES layer across two fiscal quarters from a heat treatment operation. The ML task is regression to predict total furnace cycle time (minutes) from five process variables. Mean cycle time: 299.6 min, range 205.1–381.0 min. The model is also used to fill planning gaps for 100 low-volume part numbers with no historical cycle time records.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature               | Source System              | Instrument
+----------------------|----------------------------|--------------------------
+rack_piece_count      | MES / Production Order     | Logged at rack load confirmation before furnace door closes
+avg_piece_mass_kg     | ERP / Part Master          | Nominal mass from engineering drawing or incoming weighing
+part_mix_count        | MES / Work Order Routing   | Number of distinct PNs on the rack — derived from the production order
+avg_furnace_temp_c    | Furnace PLC / SCADA        | Mean thermocouple reading during the hold phase of the cycle
+burner_power_pct      | Furnace PLC                | Burner set-point captured at cycle initiation
+cycle_time_min        | MES / Cycle Log            | Timestamp delta: door-close to quench-start, extracted from event log
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+rack_piece_count      - Total pieces loaded in the rack (int); more pieces means more total mass to heat. Coefficient +0.29 min/piece.
+avg_piece_mass_kg     - Weighted average mass per piece (kg); dominant driver — thermal mass saturates the cycle. Coefficient +21.60 min/kg.
+part_mix_count        - Number of distinct part numbers on the rack (1–5); tightest alloy window governs the whole rack. Coefficient +9.59 min/type.
+avg_furnace_temp_c    - Mean furnace chamber temperature during hold phase (°C); secondary controllable reduction lever. Coefficient -0.25 min/°C.
+burner_power_pct      - Burner set-point during hold phase (%); primary controllable reduction lever. Coefficient -0.37 min/%.
+cycle_time_min        - Total furnace cycle time (minutes); regression target. Range 205.1–381.0 min, mean 299.6 min.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+No scaling required for OLS — coefficients express effects in physical units (minutes per kg, minutes per part type, etc.). Both scikit-learn (for predictions) and statsmodels OLS (for inferential layer: p-values, confidence intervals, F-statistic) used simultaneously. All five features: p < 0.001, VIF < 1.02 (nearly orthogonal). Train/Test split: 80/20, random_state=42.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by production planners and heat treatment engineers in industrial manufacturing. The model enables accurate furnace slot scheduling and closes a planning gap for 100 low-volume part numbers that previously had no cycle time estimates — turning a scheduling blindspot into a complete planning reference table with ±13.5 min known uncertainty.
+
+--------------------------------------------------
+GOAL:
+
+Predict furnace cycle time to optimize furnace utilization, improve production planning accuracy, and systematically estimate cycle times for 100 previously unschedulable part numbers. Model achieved R² = 0.805, RMSE = 13.50 min, MAE = 11.00 min.

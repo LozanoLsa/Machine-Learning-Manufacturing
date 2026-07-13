@@ -1,0 +1,49 @@
+PROJECT: 05_Decision_Tree_SUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 2,317 stamping press production records from a manufacturing environment spanning two production shifts and four machine lines. The ML task is multiclass classification to predict scrap risk level (Low / Medium / High) before a press run starts. Class distribution: Low 19.9%, Medium 50.4%, High 29.7%. Source: simulated operational data reflecting real stamping process factor interactions.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature                   | Source System              | Instrument
+--------------------------|----------------------------|--------------------------
+press_speed_spm           | Machine Control System     | PLC set-point register — strokes per minute
+raw_material_hardness_hrb | Incoming Material Inspection / LIMS | Rockwell hardness tester — HRB scale
+operator_experience_yrs   | Operator Assignment / HR Records | HR system — years in current operator role
+ambient_temp_c            | Environmental Monitoring   | Shop floor temperature sensor at run start
+critical_supplier_lot     | Supplier Traceability System | ERP / incoming inspection lot flag
+shift                     | Production Scheduling System | MES / time-clock — Day / Night / Early_Morning
+recent_model_change       | Engineering Change Records | ECO log — flag for model change in last 48 hours
+setup_checklist_complete  | Pre-Production Checklist / Setup Records | Digital checklist system — completion flag
+scrap_risk                | Quality Classification System / History | Quality records — Low / Medium / High risk label
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+press_speed_spm           - Press strokes per minute; higher speeds can increase instability and defect probability. Gini importance 17.3%.
+raw_material_hardness_hrb - Material hardness (HRB); affects formability and scrap generation.
+operator_experience_yrs   - Years of operator experience; experience compensates for difficult conditions. Gini importance 23.2%.
+ambient_temp_c            - Ambient temperature at run start (°C); affects material and machine behavior. Zero Gini importance in this tree configuration.
+critical_supplier_lot     - Binary flag: critical supplier lots have 53.5% High Risk vs 19.4% for standard lots. Gini importance 19.2%.
+shift                     - Categorical: Night 37.6% High Risk vs 22.9% Day. Zero Gini importance in this tree configuration.
+recent_model_change       - Binary flag: recent model changes in last 48 hours increase process instability. Gini importance 16.6%.
+setup_checklist_complete  - Binary flag: incomplete checklists produce 42.2% High Risk vs 16.8% when complete. Gini importance 23.7% — highest single lever.
+scrap_risk                - Multiclass target: Low / Medium / High scrap risk for the production run.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+OneHotEncoder applied to shift (three levels: Day / Night / Early_Morning). No scaling needed — Decision Trees use threshold splits, not distances. Hyperparameters: max_depth=5, min_samples_leaf=50 (deliberately constrained — each leaf represents at least 50 production runs). Train/Test split: 70/30, random_state=42.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by process engineers and shift supervisors in stamping press manufacturing. The Decision Tree output is a set of if-then-else rules that can be printed and posted at the press — converting the model directly into process documentation and standard work.
+
+--------------------------------------------------
+GOAL:
+
+Classify scrap risk before the press starts to support real-time decision-making, prevent defects before production, and improve setup discipline. Model achieved Test Accuracy 72.0%, F1 Macro 71.8%, High-Risk Recall 74%.

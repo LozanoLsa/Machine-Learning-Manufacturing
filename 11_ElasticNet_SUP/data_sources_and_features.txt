@@ -1,0 +1,57 @@
+PROJECT: 11_ElasticNet_SUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,741 hot stamping cycles from a press hardening line spanning three production shifts and two steel grade changeovers. The ML task is regression to predict tensile strength (MPa) after press hardening. Target range: 591.5–1,417.6 MPa, mean 991.0 MPa, specification ≥ 900 MPa, 75.1% in-spec. ElasticNet is used because the data contains both correlated variables (furnace entry and exit temperatures, r = 0.95) and genuinely irrelevant ones — requiring a combined L1/L2 approach that lets the data select the optimal regularization mixture.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature                   | Source System              | Instrument
+--------------------------|----------------------------|--------------------------
+furnace_entry_temp_c      | Furnace SCADA / Thermocouple Array | Thermocouple at blank entry portal — ZEROED by ElasticNet (redundant with furnace_exit_temp_c, r=0.92)
+furnace_exit_temp_c       | Furnace SCADA / Thermocouple Array | Thermocouple at blank exit portal — active feature
+die_temp_c                | Press PLC / Die Thermocouple | Embedded thermocouple — die surface temperature at die close
+transfer_time_s           | Press PLC Timer            | Timestamp delta between furnace exit signal and die-close signal
+press_force_kn            | Press PLC / Load Cell      | Peak force recorded during the forming stroke
+press_speed_mm_s          | Press PLC / Encoder        | Ram velocity at die approach — from the motion controller
+dwell_time_s              | Press PLC Timer            | Closed die dwell time — programmable parameter logged per stroke — ZEROED by ElasticNet
+blank_thickness_mm        | ERP / Material Cert        | Nominal blank thickness from coil certificate or incoming inspection
+steel_grade               | ERP / Material Master      | Grade code from production order: 1=Usibor / 2=Ductibor / 3=MBorian
+active_cooling            | Cooling Circuit PLC / Flow Meter | Binary flag: 1 = water-cooled die active, 0 = passive
+cooling_pressure_bar      | Cooling Circuit PLC / Flow Meter | Cooling water pressure logged per cycle from die cooling controller
+cooling_flow_l_min        | Cooling Circuit PLC / Flow Meter | Cooling water flow rate logged per cycle from die cooling controller
+tensile_strength_mpa      | Inline Tensile Tester / QMS | Destructive or ultrasonic tensile estimate per production lot — TARGET variable
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+furnace_entry_temp_c   - Blank temperature entering furnace (°C); ZEROED — fully redundant with furnace_exit_temp_c (r = 0.92).
+furnace_exit_temp_c    - Blank temperature exiting furnace (°C); coefficient +7.22 — higher austenitising temperature enables more complete martensite transformation potential.
+die_temp_c             - Active die surface temperature (°C); coefficient -27.22 — hotter die slows quench, reduces martensite fraction. Primary operator adjustment lever.
+transfer_time_s        - Time between furnace exit and die close (s); coefficient -3.22 — longer transfer allows more cooling before die close.
+press_force_kn         - Maximum press force during forming (kN); dominant driver. Coefficient +113.87 — determines martensite transformation completeness.
+press_speed_mm_s       - Ram closing speed (mm/s); coefficient +0.57 — faster closure reduces open-air cooling time before quench.
+dwell_time_s           - Time blank remains in closed die (s); ZEROED — no measurable tensile effect at 3–20 s operational range once die temperature and cooling are controlled.
+blank_thickness_mm     - Sheet blank thickness (mm); coefficient -10.65 — thicker blanks cool more slowly, reducing quench rate and martensite content.
+steel_grade            - Grade: 1=Usibor (mean 1,052 MPa) / 2=Ductibor (mean 986 MPa) / 3=MBorian (mean 931 MPa); coefficient -48.27.
+active_cooling         - Binary: 1 = water-cooled die; coefficient +6.68 — enforces faster quench and direct strength gain.
+cooling_pressure_bar   - Cooling water pressure (bar); coefficient +1.75 — ensures flow uniformity across die channels.
+cooling_flow_l_min     - Cooling water flow rate (L/min); coefficient +3.18 — higher flow extracts heat faster.
+tensile_strength_mpa   - Part tensile strength after press hardening (MPa); regression target. Specification: ≥ 900 MPa.
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+StandardScaler applied to all 12 features — mandatory for both L1 and L2 penalties. ElasticNetCV searched 60 x 8 = 480 hyperparameter combinations (60 alpha values x 8 l1_ratio candidates: 0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 1.0) via 5-fold CV. Selected: alpha = 0.1597, l1_ratio = 1.00 (pure L1 — data is Lasso-like). Two features zeroed: furnace_entry_temp_c (redundant sensor) and dwell_time_s (non-contributing at observed operating range). Train/Test split: 80/20, random_state=42.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by process engineers and quality managers in automotive hot stamping lines producing B-pillars, door reinforcements, and bumper beams. The model enables pre-production recipe validation for tensile compliance and identifies the cooling system as the primary strength lever — water-cooled die vs. passive cooling is the single largest controllable variable after press force.
+
+--------------------------------------------------
+GOAL:
+
+Predict tensile strength after press hardening to ensure structural safety specifications, reduce variability, and optimize thermal and forming parameters across three steel grade families. ElasticNet automatically selected pure L1 regularization and zeroed two non-contributing features without requiring prior knowledge of the data structure. Model achieved R² = 0.893, RMSE = 43.24 MPa, MAE = 34.64 MPa.

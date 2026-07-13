@@ -1,0 +1,37 @@
+PROJECT: 16_DBSCAN_UNSUP
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 1,724 CNC machining cycle records from a precision manufacturing cell process historian. The ML task is density-based anomaly detection (DBSCAN) using three process signals — vibration, spindle temperature, and dimensional deviation — to identify 149 anomalous cycles (8.6%) without any labeled failure data. No target variable exists; DBSCAN discovers the normal operating envelope from the data itself. The anomalous cycles show a consistent multivariate tool-wear signature that sits below every individual threshold alarm.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+Feature           | Source System                       | Instrument
+------------------|-------------------------------------|------------------------------
+vibration_mm_s    | SCADA / CNC controller              | Piezoelectric accelerometer on spindle housing, RMS over cycle duration
+spindle_temp_c    | DCS / Machine tool controller       | RTD or thermocouple at spindle bearing — logged at end-of-cycle
+dim_deviation_um  | SPC / CMM or in-line gauge          | Coordinate Measuring Machine or air-gauge post-machining inspection
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+vibration_mm_s    - Vibration amplitude at spindle housing (mm/s RMS); primary tool-wear indicator. Normal mean: 2.68 mm/s, Anomaly mean: 3.80 mm/s (+42%). Primary detection trigger — crosses 3-sigma boundary in 100% of the 149 detected anomalous cycles.
+spindle_temp_c    - Spindle bearing temperature (°C); rises with friction as lubrication degrades. Normal mean: 45.4°C, Anomaly mean: 52.7°C (+16%).
+dim_deviation_um  - Dimensional deviation of finished part from nominal (µm); quality output signal. Normal mean: 8.12 µm, Anomaly mean: 11.32 µm (+39%).
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+StandardScaler applied to all three variables before distance computation — mandatory for DBSCAN because Euclidean distances in the three-dimensional feature space would otherwise be dominated by dimensional deviation in micrometers over temperature in degrees Celsius. Scaler fitted on historical data and applied identically to new observations at inference time. Hyperparameter selection: K-distance plot (k=4) reveals sharp elbow at eps = 0.45 in standardized units; min_samples = 5. Sensitivity analysis: eps = 0.40 yields 10.2% anomaly rate, eps = 0.50 yields 6.6%, bracketing the 8.6% result that aligns with domain expectations for a well-maintained precision machining cell. No train/test split — DBSCAN maps the density landscape of the full historical window. PCA confirms 86.6% of variance captured in 2 components.
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by CNC process engineers and maintenance teams in precision manufacturing cells. DBSCAN answers the question that threshold-based alarm systems cannot: does this machining cycle belong to the normal operating population, or not? The 149 flagged cycles show a progressive tool-wear trajectory — vibration climbing as the cutting edge degrades, spindle temperature rising, and dimensional deviation widening — that no individual alarm would detect because each sensor stays below its engineering limit across all anomalous cycles. The 5 borderline cycles in the micro-cluster (C1) provide a yellow-flag tier for early warning before full anomaly classification.
+
+--------------------------------------------------
+GOAL:
+
+Identify 149 anomalous CNC machining cycles (8.6% of 1,724) using density-based anomaly detection on three process signals, without any labeled failure data, by mapping the shape of the normal operating region and flagging cycles isolated from the dense core. Normal cluster: 1,570 cycles (91.1%). Borderline micro-cluster: 5 cycles (0.3%). Anomalies: 149 cycles (8.6%). PCA variance captured in 2D: 86.6%.

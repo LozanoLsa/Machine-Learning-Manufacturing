@@ -1,0 +1,53 @@
+PROJECT: 21_IsolationForest_ANOM
+TITLE: Data Sources & Feature Engineering
+
+--------------------------------------------------
+OVERVIEW:
+This dataset contains 10,312 stamping cycles from a simulated hot stamping press line producing boron steel automotive components. The ML task is multivariate anomaly detection using Isolation Forest on 9 continuous sensor signals across three simultaneous failure modes: Type A (Mechanical — bearing wear), Type B (Thermal — furnace fault), Type C (Press — low tonnage). is_anomaly is an engineer-validated ground truth held out for evaluation only — Isolation Forest trains in fully unsupervised mode. Total anomaly rate: 3.0% (309 cycles). Precision = 0.852, Recall = 0.854, F1 = 0.853.
+
+--------------------------------------------------
+REAL-WORLD DATA SOURCES:
+
+The README describes this as a simulated hot stamping press line. No formal Data Origin table with real-world source system attribution is present. The sensor channels correspond to the following real-world instrumentation categories in hot stamping and press operations:
+
+Feature             | Sensor Category                     | Notes
+--------------------|-------------------------------------|------------------------------
+tool_temp_c         | Thermal monitoring — die / tool     | Tool surface temperature; normal range 420–440°C; failure mode: tool overheating / cooling failure
+part_temp_c         | Thermal monitoring — blank          | Blank / part temperature at press entry; normal range 820–880°C; failure mode: insufficient blank heating / furnace fault
+vibration_x_mm_s    | Vibration monitoring — X axis       | X-axis spindle/frame vibration; normal range 1.5–5.0 mm/s; failure mode: bearing wear / mechanical looseness
+vibration_y_mm_s    | Vibration monitoring — Y axis       | Y-axis cross vibration; normal range 1.5–5.0 mm/s; failure mode: cross-axis resonance / imbalance
+press_force_ton     | Press load monitoring               | Peak forming force (ton); normal range 210–250 ton; failure mode: low tonnage — incomplete forming
+contact_force_kn    | Die contact / clamping force        | Die clamping / contact force (kN); normal range 165–200 kN; failure mode: die alignment issue
+cycle_time_s        | Process timing — MES / PLC          | Stamping cycle duration (s); normal range 15–22 s; failure mode: process slowdown / robot delay
+energy_kwh          | Energy monitoring                   | Cycle energy consumption (kWh); normal range 20–30 kWh; failure mode: energy spike / high friction
+lubricant_flow_lmin | Lubrication system                  | Lubricant flow rate (L/min); normal range 3.5–6.5 L/min; failure mode: lubrication failure
+is_anomaly          | Engineer-validated ground truth     | TARGET for evaluation only — not used during Isolation Forest training; 0 = normal, 1 = anomaly
+
+--------------------------------------------------
+VARIABLE DESCRIPTIONS:
+
+tool_temp_c         - Tool surface temperature (°C); IF score correlation: -0.108. Anomaly delta: +2.2%. Type B (Thermal) primary sensor.
+part_temp_c         - Blank temperature at press entry (°C); Type B (Thermal) primary sensor alongside tool_temp_c and cycle_time_s.
+vibration_x_mm_s    - X-axis frame vibration (mm/s RMS); dominant isolation signal. IF score correlation: -0.241. Anomaly delta: +50.0%. Type A (Mechanical) primary sensor.
+vibration_y_mm_s    - Y-axis cross vibration (mm/s RMS); second-strongest isolation signal. IF score correlation: -0.218. Anomaly delta: +52.7%. Type A primary sensor.
+press_force_ton     - Peak forming force (ton); inverse driver — low value signals Type C anomaly. IF score correlation: +0.122. Anomaly delta: -5.0%.
+contact_force_kn    - Die contact force (kN); inverse driver correlated with press_force_ton. IF score correlation: +0.068. Anomaly delta: -4.1%. Type C (Press) primary sensor.
+cycle_time_s        - Stamping cycle duration (s); IF score correlation: -0.152. Anomaly delta: +13.5%. Type B secondary sensor.
+energy_kwh          - Cycle energy consumption (kWh); IF score correlation: -0.178. Anomaly delta: +11.2%. Type A secondary sensor.
+lubricant_flow_lmin - Lubricant flow rate (L/min); lubrication failure indicator.
+is_anomaly          - Engineer-validated ground truth (0/1); used for evaluation only. Anomaly rate: 3.0% (309 cycles).
+
+--------------------------------------------------
+FEATURE ENGINEERING:
+
+StandardScaler applied before training — without scaling, sensors with wide absolute ranges (tool_temp_c: 393–497°C) would dominate random split selection over narrow-range sensors (energy_kwh: 17–35 kWh). Scaler fitted on training set and applied identically to all new cycles. Isolation Forest parameters: n_estimators=300, contamination=0.03 (matches known anomaly rate — confirmed optimal via F1 sensitivity analysis), bootstrap=True, random_state=42. Score interpretation: score_samples() returns values in [-1, 0]; score near -1 = very short path = highly anomalous. Decision threshold at 3rd percentile of score distribution (-0.5349). Contamination sensitivity confirmed: F1 degrades at 0.02 (misses too many) and 0.05 (too many false alarms). Train/test split for evaluation only (random_state=42).
+
+--------------------------------------------------
+BUSINESS CONTEXT:
+
+Used by process engineers and maintenance teams on hot stamping lines producing automotive structural components (B-pillars, door reinforcements). Isolation Forest addresses a limitation of Z-Score and threshold-based alarms: a hot stamping press can fail in mechanically distinct ways simultaneously (bearing wear, furnace fault, tonnage valve drift), and no single statistical boundary captures all three failure signatures in a 9-dimensional sensor space. The continuous anomaly score provides a severity gradient — enabling tiered maintenance response (Stop / Monitor / Inspect) proportional to the threat rather than a binary alarm.
+
+--------------------------------------------------
+GOAL:
+
+Detect three mechanistically distinct failure modes (Mechanical, Thermal, Low-Pressure) in 10,312 hot stamping cycles using Isolation Forest on 9 sensor signals without labeled failure data, providing a continuous severity score that maps to tiered maintenance actions. Precision = 0.852, Recall = 0.854, F1 = 0.853, Accuracy = 0.991. Normal cycles: 9,957 (96.6%). Anomalies detected: 264 of 309 (85.4% recall). False positives: 46. Missed (Type C low-pressure): 45.
